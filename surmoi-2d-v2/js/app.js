@@ -111,6 +111,12 @@
             { duration: 1000, easing: EASE }
           );
         });
+        var tapX = 0, tapY = 0;
+        card.addEventListener("pointerdown", function (e) { tapX = e.clientX; tapY = e.clientY; });
+        card.addEventListener("click", function (e) {
+          if (Math.abs(e.clientX - tapX) > 8 || Math.abs(e.clientY - tapY) > 8) return; // it was a drag
+          openCartSheet(arcItems[k % N]);
+        });
         arc.appendChild(card);
         cards.push(card);
       })(k);
@@ -585,9 +591,6 @@
     cy += (my - cy) * ck;
     putT(cur, "translate3d(" + r2(cx) + "px, " + r2(cy) + "px, 0) translate(-50%, -50%)");
 
-    /* cart open: the home stage is fully hidden behind it — pause its animation
-       so the cursor (and the cart itself) get the whole frame budget */
-    if (cartPage && !cartPage.hidden) { requestAnimationFrame(frame); return; }
 
     if (!dragging) pos = reduced ? target : pos + (target - pos) * 0.11;
     if (intro < 1) intro = Math.min(1, intro + 0.012);
@@ -675,10 +678,12 @@
     if (ct) ct.textContent = L.ui.tryOn;
     if (cd) cd.textContent = L.ui.drag;
     cardNames.forEach(function (nm, k) { if (arcItems.length) nm.textContent = L.items[arcItems[k % N]].n; });
-    cartTexts();
     var cur = shown < 0 ? 0 : shown;
     updateBuy(ITEMS[cur], cur);
+    cartTexts2();
+    if (!cartSheet.hidden && csItem >= 0) { csName.textContent = L.items[csItem].n; renderCsLines(); }
     movePill(activeTab);
+    railSel(); // rail labels change width with the language — re-align the sliding pill
   }
   var langBtn = $("#langBtn");
   if (langBtn) langBtn.addEventListener("click", function () {
@@ -688,60 +693,152 @@
   });
 
 
-  /* ---------------- cart — the clothing rail ----------------
-     Selected hoodies hang on a chrome rail (the cart page, opened
-     from the top-bar Cart button). The checkout sends the order to
-     Omar: WhatsApp if ORDER_WHATSAPP is set, otherwise by email. */
-  var ORDER_WHATSAPP = ""; // e.g. "2126XXXXXXXX" — empty means orders arrive by email
+  /* ---------------- cart data ----------------
+     The home page IS the cart page (Omar, 2026-11-21): the separate
+     cart page is deleted. The cart lives in the arc beside the
+     character (syncArc) and in the top-bar badge. */
+  var cartBadgeEl = $("#cartBadge");
   var ORDER_EMAIL = "arhouneo14@gmail.com";
-  var cartPage = $("#cartPage"), cpRack = $("#cpRack"), cpCap = $("#cpCap"),
-      cpCapName = $("#cpCapName"), cpCapSub = $("#cpCapSub"),
-      cpBadge = $("#cartBadge"), cpDet = $("#cpDet"), cpBig = $("#cpBig"),
-      cpForm = $("#cpForm"), cpRailView = $("#cpRailView");
+  var cartBar = $("#cartBar"), cbTotalVal = $("#cbTotalVal");
+  var cartSheet = $("#cartSheet"), csName = $("#csName"), csLines = $("#csLines"), csTotalVal = $("#csTotalVal");
+  var orderSheet = $("#orderSheet"), osSum = $("#osSum"), osTotalVal = $("#osTotalVal");
+  var csItem = -1;
   var cart = [];
   try { cart = JSON.parse(window.localStorage.getItem("lbs-cart") || "[]"); } catch (e) { cart = []; }
   if (!Array.isArray(cart)) cart = [];
-  var cpHov = -1, cpOpen = -1, cpBoxW = 150, cpGarments = [];
-  var cpBack = false, cpFlipping = false;
 
   function cartSave() { try { window.localStorage.setItem("lbs-cart", JSON.stringify(cart)); } catch (e) {} }
   function cartCount() { return cart.reduce(function (s, l) { return s + l.qty; }, 0); }
-  function cartTotal() { return cart.reduce(function (s, l) { return s + l.qty * ITEMS[l.i].p; }, 0); }
   function selSize() { var c = document.querySelector(".sizeRow .chip.act"); return c ? c.textContent.trim() : "M"; }
-  function paintHanger(el, idx) {
-    // generated hanger pictures, background removed (transparent)
-    el.style.backgroundImage = 'url("assets/cart-nobg-' + (idx + 1) + '.webp")';
-    el.style.backgroundSize = "contain";
-    el.style.backgroundPosition = "center";
-    el.style.backgroundRepeat = "no-repeat";
-  }
-  function paintHangerBack(el, idx) {
-    // generated back-view hanger pictures, background removed (transparent)
-    el.style.backgroundImage = 'url("assets/cart-nobg-back-' + (idx + 1) + '.webp")';
-    el.style.backgroundSize = "contain";
-    el.style.backgroundPosition = "center";
-    el.style.backgroundRepeat = "no-repeat";
-  }
-  function paintRailHanger(el, idx) {
-    // new hanger pictures, registered so the hook lands on the rail
-    el.style.backgroundImage = 'url("assets/cart-rail-' + (idx + 1) + '.webp")';
-    el.style.backgroundSize = "contain";
-    el.style.backgroundPosition = "center";
-    el.style.backgroundRepeat = "no-repeat";
-  }
-  function paintGarment(el, item) {
-    el.style.backgroundImage = 'url("assets/garment-sheet.webp")';
-    el.style.backgroundSize = "320% 212.5%";
-    el.style.backgroundPosition = item.g[0] + "% " + item.g[1] + "%";
-    el.style.backgroundRepeat = "no-repeat";
-  }
   function cartBadgeUpdate(pulse) {
     var n = cartCount();
-    cpBadge.hidden = n === 0;
-    cpBadge.textContent = n;
-    if (pulse && n > 0) { cpBadge.classList.remove("pulse"); void cpBadge.offsetWidth; cpBadge.classList.add("pulse"); }
+    cartBadgeEl.hidden = n === 0;
+    cartBadgeEl.textContent = n;
+    if (pulse && n > 0) { cartBadgeEl.classList.remove("pulse"); void cartBadgeEl.offsetWidth; cartBadgeEl.classList.add("pulse"); }
     if (arcReady) syncArc(); // the side arc mirrors the cart, always
+    cartBarUpdate();
   }
+  /* ---------------- home = cart: total bar, per-item sheet, order form ---------------- */
+  function cartTotalVal() {
+    var t = 0;
+    cart.forEach(function (l) { t += ITEMS[l.i].p * l.qty; });
+    return t;
+  }
+  function cartBarUpdate() {
+    cartBar.hidden = cart.length === 0;
+    cbTotalVal.textContent = cartTotalVal() + " MAD";
+  }
+  function cartTexts2() {
+    $("#cbTotalTx").textContent = L.ui.total;
+    $("#cbOrder").textContent = L.ui.checkout;
+    $("#csTotalTx").textContent = L.ui.total;
+    $("#csOrder").textContent = L.ui.checkout;
+    $("#osTitle").textContent = L.ui.formTitle;
+    $("#osTotalTx").textContent = L.ui.total;
+    $("#osNote").textContent = L.ui.deliveryFree;
+    $("#osNameTx").textContent = L.ui.fName;
+    $("#osPhoneTx").textContent = L.ui.fPhone;
+    $("#osCityTx").textContent = L.ui.fCity;
+    $("#osAddrTx").textContent = L.ui.fAddress;
+    $("#osConfirm").textContent = L.ui.confirm;
+  }
+  function openCartSheet(itemIdx) {
+    if (!cart.some(function (l) { return l.i === itemIdx; })) return;
+    csItem = itemIdx;
+    csName.textContent = L.items[itemIdx].n;
+    renderCsLines();
+    cartSheet.hidden = false;
+  }
+  function renderCsLines() {
+    csLines.innerHTML = "";
+    var any = false;
+    cart.forEach(function (l, li) {
+      if (l.i !== csItem) return;
+      any = true;
+      var row = document.createElement("div");
+      row.className = "csLine";
+      var sz = document.createElement("span");
+      sz.className = "csSize";
+      sz.textContent = L.ui.size + " " + l.size;
+      var qty = document.createElement("div");
+      qty.className = "csQty";
+      var minus = document.createElement("button");
+      minus.className = "csStep"; minus.type = "button"; minus.textContent = "\u2212";
+      minus.addEventListener("click", function () { stepLine(li, -1); });
+      var val = document.createElement("span");
+      val.className = "csQtyVal"; val.textContent = l.qty;
+      var plus = document.createElement("button");
+      plus.className = "csStep"; plus.type = "button"; plus.textContent = "+";
+      plus.addEventListener("click", function () { stepLine(li, 1); });
+      qty.appendChild(minus); qty.appendChild(val); qty.appendChild(plus);
+      var pr = document.createElement("span");
+      pr.className = "csPrice";
+      pr.textContent = (ITEMS[l.i].p * l.qty) + " MAD";
+      var rm = document.createElement("button");
+      rm.className = "csRemove"; rm.type = "button"; rm.textContent = L.ui.remove;
+      rm.addEventListener("click", function () { removeLine(li); });
+      row.appendChild(sz); row.appendChild(qty); row.appendChild(pr); row.appendChild(rm);
+      csLines.appendChild(row);
+    });
+    csTotalVal.textContent = cartTotalVal() + " MAD";
+    if (!any) cartSheet.hidden = true;
+  }
+  function stepLine(li, d) {
+    var l = cart[li];
+    if (!l) return;
+    l.qty = Math.max(1, l.qty + d);
+    cartSave(); cartBadgeUpdate(); renderCsLines();
+  }
+  function removeLine(li) {
+    cart.splice(li, 1);
+    cartSave(); cartBadgeUpdate(); renderCsLines();
+  }
+  function openOrderSheet() {
+    if (!cart.length) return;
+    cartSheet.hidden = true;
+    osSum.innerHTML = "";
+    cart.forEach(function (l) {
+      var r = document.createElement("div");
+      r.className = "osSumRow";
+      var a = document.createElement("span");
+      a.textContent = L.items[l.i].n + " · " + l.size + " \u00d7" + l.qty;
+      var b = document.createElement("b");
+      b.textContent = (ITEMS[l.i].p * l.qty) + " MAD";
+      r.appendChild(a); r.appendChild(b);
+      osSum.appendChild(r);
+    });
+    osTotalVal.textContent = cartTotalVal() + " MAD";
+    orderSheet.hidden = false;
+  }
+  $("#cartSheetX").addEventListener("click", function () { cartSheet.hidden = true; });
+  cartSheet.addEventListener("click", function (e) { if (e.target === cartSheet) cartSheet.hidden = true; });
+  $("#orderSheetX").addEventListener("click", function () { orderSheet.hidden = true; });
+  orderSheet.addEventListener("click", function (e) { if (e.target === orderSheet) orderSheet.hidden = true; });
+  $("#cbOrder").addEventListener("click", openOrderSheet);
+  $("#csOrder").addEventListener("click", openOrderSheet);
+  $("#orderForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = $("#fName"), phone = $("#fPhone"), city = $("#fCity"), addr = $("#fAddr");
+    var ok = true;
+    [name, phone].forEach(function (inp) {
+      var bad = !inp.value.trim();
+      inp.classList.toggle("bad", bad);
+      if (bad) ok = false;
+    });
+    if (!ok) return;
+    var lines = cart.map(function (l) {
+      return "\u2022 " + ITEMS[l.i].name + " \u00b7 Taille " + l.size + " \u00d7" + l.qty + " \u2014 " + (ITEMS[l.i].p * l.qty) + " MAD";
+    });
+    var body = "Nouvelle commande \u2014 LBS\n\n" + lines.join("\n") +
+      "\n\nTotal : " + cartTotalVal() + " MAD" +
+      "\n\nNom : " + name.value.trim() +
+      "\nT\u00e9l\u00e9phone : " + phone.value.trim() +
+      "\nVille : " + city.value.trim() +
+      "\nAdresse : " + addr.value.trim();
+    location.href = "mailto:" + ORDER_EMAIL + "?subject=" +
+      encodeURIComponent("Commande LBS \u2014 " + name.value.trim()) + "&body=" + encodeURIComponent(body);
+  });
+
   function addToCart(idx) {
     preview = -1; // once added, the item lives in the arc — no longer a preview
     var sz = selSize(), found = null;
@@ -767,248 +864,6 @@
     flashAdded(buyBtnEl);
   });
 
-  function cartTexts() {
-    if (!cartPage) return;
-    $("#cpTitle").textContent = L.ui.cartTitle;
-    $("#cpBackTx").textContent = L.ui.retour;
-    $("#cpEmptyT").textContent = L.ui.emptyCart;
-    $("#cpEmptyH").textContent = L.ui.emptyHint;
-    $("#cpDiscover").textContent = L.ui.discover;
-    $("#cpTotalLbl").textContent = L.ui.total;
-    $("#cpCheckout").textContent = L.ui.checkout;
-    $("#cpDeliv").textContent = L.ui.deliveryFree;
-    $("#cpClose").textContent = L.ui.close;
-    $("#cpRemove").textContent = L.ui.remove;
-    $("#cpFormTitle").textContent = L.ui.formTitle;
-    $("#cpLblName").textContent = L.ui.fName;
-    $("#cpLblPhone").textContent = L.ui.fPhone;
-    $("#cpLblCity").textContent = L.ui.fCity;
-    $("#cpLblAddr").textContent = L.ui.fAddress;
-    $("#cpConfirm").textContent = L.ui.confirm;
-    $("#cpFormBack").textContent = L.ui.retour;
-    var cpft = $("#cpFlipTx");
-    if (cpft) cpft.textContent = cpBack ? L.ui.front : L.ui.back;
-    var half = L.ui.marquee.repeat(6);
-    $("#cpBandTrack").innerHTML = '<span class="cpHalf">' + half + '</span><span class="cpHalf">' + half + "</span>";
-    if (cpOpen >= 0 && cart[cpOpen]) cpFill(cpOpen);
-    if (!cartPage.hidden && cpForm.hidden) cpLayout();
-  }
-
-  function cartRender() {
-    cpRack.innerHTML = ""; cpGarments = [];
-    cart.forEach(function (line, k) {
-      var g = document.createElement("div");
-      g.className = "cg";
-      var iEl = document.createElement("i");
-      var gimg = document.createElement("div");
-      gimg.className = "gimg rail";
-      paintRailHanger(gimg, line.i);
-      iEl.appendChild(gimg);
-      g.appendChild(iEl);
-      g.addEventListener("pointerenter", function () {
-        if (cpOpen < 0 && cpHov !== k) { cpHov = k; cpLayout(); }
-      });
-      g.addEventListener("click", function () {
-        if (cpOpen >= 0) return;
-        if (cpHov !== k) { cpHov = k; cpLayout(); } else cpOpenDetail(k);
-      });
-      cpRack.appendChild(g);
-      cpGarments.push(g);
-    });
-    var empty = cart.length === 0;
-    $("#cpEmpty").hidden = !empty;
-    $("#cpBar").style.visibility = empty ? "hidden" : "visible";
-    cpLayout();
-  }
-
-  function cpLayout() {
-    var n = cart.length;
-    $("#cpTotal").textContent = cartTotal() + " MAD";
-    $("#cpCount").textContent = cartCount() ? String(cartCount()) : "";
-    if (!n) { cpCap.classList.remove("on"); return; }
-    var W = cpRack.clientWidth || window.innerWidth;
-    cpBoxW = n <= 2 ? 196 : n === 3 ? 180 : n === 4 ? 165 : n === 5 ? 150 : 138;
-    var slot = n <= 1 ? 0 : Math.min(118, (W - 16 - cpBoxW) / (n - 1));
-    var openGap = Math.min(46, cpBoxW * 0.26);
-    cart.forEach(function (line, k) {
-      var g = cpGarments[k]; if (!g) return;
-      var cx = W / 2 + (k - (n - 1) / 2) * slot;
-      if (cpHov >= 0 && k !== cpHov) cx += Math.sign(k - cpHov) * openGap;
-      g.style.left = cx + "px";
-      var phH = Math.round(cpBoxW * 1.22), phW = Math.round(phH * 2 / 3), phTop = 38 - Math.round(phH * 0.0604);
-      var gim = g.querySelector(".gimg");
-      if (gim) { gim.style.width = phW + "px"; gim.style.height = phH + "px"; gim.style.top = phTop + "px"; }
-      g.dataset.pbottom = phTop + phH;
-      g.style.width = cpBoxW + "px";
-      g.style.height = cpBoxW + "px";
-      g.style.zIndex = k === cpHov ? 5 : k;
-      g.classList.toggle("face", k === cpHov);
-      g.dataset.cx = cx;
-    });
-    if (cpHov >= 0 && cart[cpHov]) {
-      var line = cart[cpHov];
-      cpCapName.textContent = L.items[line.i].n;
-      cpCapSub.textContent = ITEMS[line.i].p + " MAD · " + L.ui.size + " " + line.size + (line.qty > 1 ? " · ×" + line.qty : "");
-      cpCap.style.left = cpGarments[cpHov].style.left;
-      cpCap.style.top = (40 + (Number(cpGarments[cpHov].dataset.pbottom) || cpBoxW) + 16) + "px";
-      cpCap.classList.add("on");
-    } else cpCap.classList.remove("on");
-  }
-
-  function cpFill(k) {
-    var line = cart[k];
-    $("#cpNum").textContent = ("0" + (k + 1)).slice(-2) + " / " + ("0" + cart.length).slice(-2);
-    $("#cpName").textContent = L.items[line.i].n;
-    $("#cpPrice").textContent = ITEMS[line.i].p + " MAD";
-    $("#cpSizeLine").textContent = L.ui.size + " : " + line.size;
-    $("#cpQVal").textContent = line.qty;
-  }
-  var cpFlipBtn = $("#cpFlip");
-  function cpPaintBig() {
-    if (cpBack) paintHangerBack(cpBig, cart[cpOpen].i); else paintHanger(cpBig, cart[cpOpen].i);
-    var tx = $("#cpFlipTx");
-    if (tx) tx.textContent = cpBack ? L.ui.front : L.ui.back;
-    if (cpFlipBtn) cpFlipBtn.setAttribute("aria-label", cpBack ? L.ui.seeFront : L.ui.seeBack);
-  }
-  function cpFlip() {
-    if (cpOpen < 0 || cpFlipping) return;
-    cpFlipping = true;
-    try { cpBig.getAnimations().forEach(function (an) { an.cancel(); }); } catch (e) {}
-    cpBig.style.opacity = "1";
-    cpBig.animate([
-      { transform: "rotateY(0deg)", opacity: 1 },
-      { transform: "rotateY(88deg)", opacity: .3, offset: .45 },
-      { transform: "rotateY(0deg)", opacity: 1 }
-    ], { duration: 480, easing: "ease-in-out" });
-    window.setTimeout(function () { cpBack = !cpBack; cpPaintBig(); }, 215);
-    window.setTimeout(function () { cpFlipping = false; }, 500);
-  }
-  function cpOpenDetail(k) {
-    cpOpen = k; cpHov = k; cpBack = false; cpLayout();
-    cpFill(k);
-    cpPaintBig();
-    cpDet.hidden = false;
-    cpRailView.classList.add("dimmed");
-    var g = cpGarments[k];
-    var gx = parseFloat(g.dataset.cx || window.innerWidth / 2);
-    var bigW = cpBig.offsetWidth || 300;
-    try { cpBig.getAnimations().forEach(function (an) { an.cancel(); }); } catch (e) {}
-    cpBig.style.opacity = "1";
-    cpBig.animate([
-      { transform: "translate(" + (gx - window.innerWidth / 2) + "px, -10px) scale(" + (cpBoxW / bigW) + ")", opacity: 1 },
-      { transform: "translate(0px, 0px) scale(1)", opacity: 1 }
-    ], { duration: 750, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" });
-    g.style.visibility = "hidden";
-  }
-  function cpStep(d) {
-    if (cpOpen < 0 || cart.length < 2) return;
-    var from = cpOpen;
-    cpOpen = (cpOpen + d + cart.length) % cart.length;
-    cpGarments[from].style.visibility = "";
-    cpGarments[cpOpen].style.visibility = "hidden";
-    cpHov = cpOpen; cpBack = false; cpLayout();
-    cpFill(cpOpen);
-    cpPaintBig();
-    try { cpBig.getAnimations().forEach(function (an) { an.cancel(); }); } catch (e) {}
-    cpBig.animate([
-      { transform: "translate(" + (d * 110) + "px, 0px) scale(.94)", opacity: 0 },
-      { transform: "translate(0px, 0px) scale(1)", opacity: 1 }
-    ], { duration: 550, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" });
-  }
-  function cpCloseDetail() {
-    if (cpOpen < 0) return;
-    var k = cpOpen, g = cpGarments[k];
-    var gx = parseFloat(g.dataset.cx || window.innerWidth / 2);
-    var bigW = cpBig.offsetWidth || 300;
-    cpRailView.classList.remove("dimmed");
-    try { cpBig.getAnimations().forEach(function (an) { an.cancel(); }); } catch (e) {}
-    cpBig.animate([
-      { transform: "translate(0px, 0px) scale(1)", opacity: 1 },
-      { transform: "translate(" + (gx - window.innerWidth / 2) + "px, -10px) scale(" + (cpBoxW / bigW) + ")", opacity: 1 }
-    ], { duration: 650, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" });
-    window.setTimeout(function () {
-      cpDet.hidden = true;
-      g.style.visibility = "";
-      cpOpen = -1; cpHov = -1; cpBack = false;
-      cpLayout();
-    }, 660);
-  }
-  $("#cpPrev").addEventListener("click", function () { cpStep(-1); });
-  $("#cpNext").addEventListener("click", function () { cpStep(1); });
-  if (cpFlipBtn) cpFlipBtn.addEventListener("click", cpFlip);
-  $("#cpClose").addEventListener("click", cpCloseDetail);
-  $("#cpHit").addEventListener("click", cpCloseDetail);
-  $("#cpQPlus").addEventListener("click", function () {
-    if (cpOpen < 0) return;
-    cart[cpOpen].qty++; cartSave(); cpFill(cpOpen); cpLayout(); cartBadgeUpdate(false);
-  });
-  $("#cpQMinus").addEventListener("click", function () {
-    if (cpOpen < 0) return;
-    if (cart[cpOpen].qty > 1) cart[cpOpen].qty--;
-    cartSave(); cpFill(cpOpen); cpLayout(); cartBadgeUpdate(false);
-  });
-  $("#cpRemove").addEventListener("click", function () {
-    if (cpOpen < 0) return;
-    cart.splice(cpOpen, 1);
-    cartSave(); cartBadgeUpdate(false);
-    cpDet.hidden = true;
-    cpRailView.classList.remove("dimmed");
-    cpOpen = -1; cpHov = -1;
-    cartRender();
-  });
-
-  function cpShowView(which) {
-    cpRailView.hidden = which !== "rail";
-    cpForm.hidden = which !== "form";
-  }
-  $("#cartBtn").addEventListener("click", function () {
-    cartPage.hidden = false;
-    cpDet.hidden = true; cpOpen = -1; cpHov = -1;
-    cpRailView.classList.remove("dimmed");
-    cpShowView("rail");
-    cartRender();
-  });
-  $("#cpBack").addEventListener("click", function () {
-    if (!cpForm.hidden) { cpShowView("rail"); cartRender(); return; }
-    if (cpOpen >= 0) { cpCloseDetail(); return; }
-    cartPage.hidden = true;
-  });
-  $("#cpDiscover").addEventListener("click", function () { goProducts(); });
-  $("#cpCheckout").addEventListener("click", function () {
-    if (!cart.length) return;
-    var html = "";
-    cart.forEach(function (l) {
-      html += '<div class="cpSumLine"><span>' + L.items[l.i].n + " · " + l.size + " ×" + l.qty + "</span><b>" + (ITEMS[l.i].p * l.qty) + " MAD</b></div>";
-    });
-    html += '<div class="cpSumLine cpSumTotal"><span>' + L.ui.total + "</span><b>" + cartTotal() + " MAD</b></div>";
-    html += '<div class="cpSumDeliv">' + L.ui.deliveryFree + "</div>";
-    $("#cpSummary").innerHTML = html;
-    cpShowView("form");
-  });
-  $("#cpFormBack").addEventListener("click", function () { cpShowView("rail"); cartRender(); });
-  $("#cpConfirm").addEventListener("click", function () {
-    var nameEl = $("#cpInName"), phoneEl = $("#cpInPhone");
-    var name = nameEl.value.trim(), phone = phoneEl.value.trim();
-    var city = $("#cpInCity").value.trim(), addr = $("#cpInAddr").value.trim();
-    if (!name) { nameEl.focus(); return; }
-    if (!phone) { phoneEl.focus(); return; }
-    var lines = ["LBS — " + L.ui.cartTitle, ""];
-    cart.forEach(function (l) {
-      lines.push("• " + L.items[l.i].n + " — " + L.ui.size + " " + l.size + " ×" + l.qty + " — " + (ITEMS[l.i].p * l.qty) + " MAD");
-    });
-    lines.push("", L.ui.total + " : " + cartTotal() + " MAD", L.ui.deliveryFree, "",
-      L.ui.fName + " : " + name, L.ui.fPhone + " : " + phone, L.ui.fCity + " : " + city, L.ui.fAddress + " : " + addr);
-    var text = lines.join("\n");
-    if (ORDER_WHATSAPP) window.open("https://wa.me/" + ORDER_WHATSAPP + "?text=" + encodeURIComponent(text), "_blank");
-    else window.location.href = "mailto:" + ORDER_EMAIL + "?subject=" + encodeURIComponent("LBS — Commande / Order") + "&body=" + encodeURIComponent(text);
-  });
-  document.addEventListener("keydown", function (e) {
-    if (cartPage.hidden) return;
-    if (e.key === "Escape") { if (cpOpen >= 0) cpCloseDetail(); else cartPage.hidden = true; }
-    else if (cpOpen >= 0 && e.key === "ArrowRight") cpStep(1);
-    else if (cpOpen >= 0 && e.key === "ArrowLeft") cpStep(-1);
-  });
-  window.addEventListener("resize", function () { if (!cartPage.hidden) cpLayout(); });
   cartBadgeUpdate(false);
 
   /* ---------------- V3 — one page ----------------
@@ -1075,7 +930,6 @@
     scrollPage.scrollTo({ top: 0, behavior: "smooth" });
   }
   function goProducts() {
-    cartPage.hidden = true;
     var p = document.getElementById("products");
     if (p) p.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -1092,19 +946,37 @@
   /* Top rail selection follows the page (Omar, 2026-11-21): the top
      section IS the cart page, so Cart is selected on load; scrolling
      down to the products moves the selection to Tops; scrolling back
-     up returns it to Cart. */
+     up returns it to Cart. The white pill SLIDES between the two
+     buttons (same animation as the tabs pill / Loby nav). */
   var topsBtn = document.getElementById("topsBtn"),
-      cartBtnEl = document.getElementById("cartBtn");
+      cartBtnEl = document.getElementById("cartBtn"),
+      railPill = document.getElementById("railPill");
+  function moveRailPill(btn) {
+    if (!btn || !railPill) return;
+    railPill.style.width = btn.offsetWidth + "px";
+    railPill.style.height = btn.offsetHeight + "px";
+    railPill.style.transform = "translateX(" + btn.offsetLeft + "px)";
+  }
   function railSel() {
     var p = document.getElementById("products");
     if (!p || !topsBtn || !cartBtnEl) return;
     var inProd = p.getBoundingClientRect().top - scrollPage.getBoundingClientRect().top <= scrollPage.clientHeight * 0.5;
     topsBtn.classList.toggle("act", inProd);
     cartBtnEl.classList.toggle("act", !inProd);
+    moveRailPill(inProd ? topsBtn : cartBtnEl);
   }
   scrollPage.addEventListener("scroll", railSel, { passive: true });
   window.addEventListener("resize", railSel);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(railSel);
+  }
   railSel();
+  /* The rail buttons are section links now: Cart = the home/cart
+     section (top), Tops = the products below. */
+  cartBtnEl.addEventListener("click", function () {
+    scrollPage.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  topsBtn.addEventListener("click", goProducts);
 
   /* ---------------- init ---------------- */
   setGarmentBg(thumbG, ITEMS[0]);
