@@ -105,7 +105,16 @@ button{font:inherit;color:inherit;background:none;border:none}
 }
 .rail .rbtn svg{width:20px;height:20px}
 .rail .rbtn:hover{background:rgba(255,255,255,.35)}
-.rail .rbtn.act{background:rgba(255,255,255,.9);color:#111}
+.rail .rbtn.act{background:transparent;color:#111}
+/* sliding selection pill — same animation as the tabs pill (Loby style):
+   glides between Cart and Tops instead of the highlight jumping */
+.rail .rpill{
+  position:absolute;left:0;top:6px;height:42px;width:0;
+  border-radius:999px;
+  background:rgba(255,255,255,.92);
+  box-shadow:0 4px 14px -6px rgba(0,0,0,.3);
+  transition:transform .6s var(--ease), width .6s var(--ease), height .6s var(--ease);
+}
 
 /* ---------- stage / arc / cards ---------- */
 .stage{position:absolute;inset:0;z-index:10;touch-action:pan-y;overflow:hidden}
@@ -549,3 +558,30 @@ button{font:inherit;color:inherit;background:none;border:none}
   .buy .ln.name{height:2.3em}
   .buy .ln.name .stack span{white-space:normal;height:2.3em}
 }
+
+/* Home = cart: total bar, per-item cart sheet, order form sheet */
+.cartBar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(4.6vh + 108px);z-index:61;display:flex;align-items:center;gap:14px;padding:8px 8px 8px 18px;border-radius:999px;color:#241f1a;font-size:14px;white-space:nowrap}
+.cartBar[hidden]{display:none}
+.cartBar b{font-weight:800}
+.cbOrder{border:none;background:#241f1a;color:#fdf9f2;font-weight:700;font-size:14px;padding:10px 18px;border-radius:999px;cursor:pointer;font-family:inherit}
+.cbOrder:active{transform:scale(.97)}
+.csLines{margin:14px 0 6px;display:flex;flex-direction:column;gap:10px}
+.csLine{display:flex;align-items:center;gap:10px;background:rgba(30,26,22,.05);border-radius:14px;padding:10px 12px}
+.csSize{font-weight:700;font-size:13.5px}
+.csQty{display:flex;align-items:center;gap:8px;margin-left:auto}
+.csStep{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(122,90,58,.6);background:#fff;font-size:16px;font-weight:700;color:#6d4e2e;cursor:pointer;line-height:1;padding:0}
+.csQtyVal{font-weight:800;min-width:18px;text-align:center}
+.csPrice{font-weight:800;color:#96683a;min-width:72px;text-align:right;font-size:14px}
+.csRemove{border:none;background:none;color:#b3543f;font-weight:700;font-size:13px;cursor:pointer;padding:4px;font-family:inherit}
+.csFoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(30,26,22,.1)}
+.csTotal{font-size:15px}
+.osSum{display:flex;flex-direction:column;gap:6px;margin:14px 0 4px;font-size:14px}
+.osSumRow{display:flex;justify-content:space-between;gap:10px}
+.osTotal{display:flex;justify-content:space-between;font-size:16px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(30,26,22,.1)}
+.osNote{font-size:12.5px;opacity:.75;margin:8px 0 14px}
+.osField{display:block;margin-bottom:10px}
+.osField span{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px;opacity:.8}
+.osField input{width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid rgba(122,90,58,.4);border-radius:12px;font-size:15px;background:#fff;color:#241f1a;font-family:inherit}
+.osField input.bad{border-color:#b3543f;background:#fdf1ee}
+.osConfirm{width:100%;margin-top:4px;padding:13px}
+@media (max-width:560px){ .cartBar{bottom:calc(4.6vh + 158px)} }
