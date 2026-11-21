@@ -1089,6 +1089,23 @@
   arcReady = true;
   syncArc();
 
+  /* Top rail selection follows the page (Omar, 2026-11-21): the top
+     section IS the cart page, so Cart is selected on load; scrolling
+     down to the products moves the selection to Tops; scrolling back
+     up returns it to Cart. */
+  var topsBtn = document.getElementById("topsBtn"),
+      cartBtnEl = document.getElementById("cartBtn");
+  function railSel() {
+    var p = document.getElementById("products");
+    if (!p || !topsBtn || !cartBtnEl) return;
+    var inProd = p.getBoundingClientRect().top - scrollPage.getBoundingClientRect().top <= scrollPage.clientHeight * 0.5;
+    topsBtn.classList.toggle("act", inProd);
+    cartBtnEl.classList.toggle("act", !inProd);
+  }
+  scrollPage.addEventListener("scroll", railSel, { passive: true });
+  window.addEventListener("resize", railSel);
+  railSel();
+
   /* ---------------- init ---------------- */
   setGarmentBg(thumbG, ITEMS[0]);
   applyLang();
