@@ -117,7 +117,7 @@ button{font:inherit;color:inherit;background:none;border:none}
 }
 
 /* ---------- stage / arc / cards ---------- */
-.stage{position:absolute;inset:0;z-index:10;touch-action:pan-y;overflow:hidden}
+.stage{position:absolute;inset:0;z-index:10;touch-action:none;overflow:hidden}
 .arc{position:absolute;left:50%;top:50%}
 .card{
   position:absolute;left:0;top:0;
@@ -560,7 +560,8 @@ button{font:inherit;color:inherit;background:none;border:none}
 }
 
 /* Home = cart: total bar, per-item cart sheet, order form sheet */
-.cartBar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(4.6vh + 108px);z-index:61;display:flex;align-items:center;gap:14px;padding:8px 8px 8px 18px;border-radius:999px;color:#241f1a;font-size:14px;white-space:nowrap}
+.buy{flex-wrap:wrap}
+.cartBar{flex:0 0 100%;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 2px 9px;margin-bottom:7px;border-bottom:1px solid rgba(255,255,255,.30);color:#fff;font-size:14.5px;white-space:nowrap}
 .cartBar[hidden]{display:none}
 .cartBar b{font-weight:800}
 .cbOrder{border:none;background:#241f1a;color:#fdf9f2;font-weight:700;font-size:14px;padding:10px 18px;border-radius:999px;cursor:pointer;font-family:inherit}
@@ -584,4 +585,10 @@ button{font:inherit;color:inherit;background:none;border:none}
 .osField input{width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid rgba(122,90,58,.4);border-radius:12px;font-size:15px;background:#fff;color:#241f1a;font-family:inherit}
 .osField input.bad{border-color:#b3543f;background:#fdf1ee}
 .osConfirm{width:100%;margin-top:4px;padding:13px}
-@media (max-width:560px){ .cartBar{bottom:calc(4.6vh + 158px)} }
+
+
+.fbOne{transition:bottom .35s ease}
+.fbOne.lift{bottom:214px}
+
+.cdrop{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(28,22,16,.72);color:#fff;font-size:13px;line-height:1;cursor:pointer;z-index:5;display:flex;align-items:center;justify-content:center;padding:0;font-family:inherit}
+.cdrop:active{transform:scale(.92)}
