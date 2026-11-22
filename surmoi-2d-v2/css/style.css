@@ -592,3 +592,14 @@ button{font:inherit;color:inherit;background:none;border:none}
 
 .cdrop{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(28,22,16,.72);color:#fff;font-size:13px;line-height:1;cursor:pointer;z-index:5;display:flex;align-items:center;justify-content:center;padding:0;font-family:inherit}
 .cdrop:active{transform:scale(.92)}
+
+/* trust line under the products title + price anchor + quick-add (2026-11-22) */
+.gridTrust{font-size:12.5px;font-weight:600;color:#8a6a45;margin:-6px 2px 14px}
+.pwrap{position:relative}
+.pcard .pp{display:flex;align-items:baseline;gap:7px}
+.ppOld{font-size:12px;font-weight:600;color:#a08b6d;text-decoration:line-through}
+.pOld{font-size:12.5px;font-weight:600;color:#a08b6d;text-decoration:line-through}
+#priceLn{display:flex;align-items:baseline;gap:8px}
+#priceLn::before{content:"249 MAD";font-size:12px;font-weight:600;color:#a08b6d;text-decoration:line-through;white-space:nowrap}
+.qadd{position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:none;background:#26221e;color:#fff;font-size:20px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 8px 18px -8px rgba(40,30,20,.55);z-index:3;padding:0}
+.qadd.done{background:#7d9b6a}
