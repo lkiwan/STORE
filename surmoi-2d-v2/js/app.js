@@ -104,6 +104,21 @@
         card.appendChild(nm);
         card.appendChild(pr);
         card.appendChild(sh);
+        var drop = document.createElement("button");
+        drop.className = "cdrop";
+        drop.type = "button";
+        drop.textContent = "\u2715";
+        drop.setAttribute("aria-label", "Remove from cart");
+        drop.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+        drop.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var idx = arcItems[k % N];
+          for (var li = cart.length - 1; li >= 0; li--) {
+            if (cart[li].i === idx) cart.splice(li, 1);
+          }
+          cartSave(); cartBadgeUpdate();
+        });
+        card.appendChild(drop);
         card.addEventListener("mouseenter", function () {
           if (reduced) return;
           sh.animate(
@@ -416,7 +431,7 @@
   document.addEventListener("pointerup", function () { pressed = false; ringScale(); });
 
   /* ---------------- drag / click ---------------- */
-  var dragId = null, startX = 0, p0 = 0, lastX = 0, lastT = 0, vel = 0, moved = 0, downCard = null;
+  var dragId = null, startX = 0, startY = 0, lastY = 0, gMode = "?", p0 = 0, lastX = 0, lastT = 0, vel = 0, moved = 0, downCard = null;
   stage.addEventListener("pointerdown", function (e) {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     preview = -1; // touching the arc takes back control from a grid preview
@@ -424,6 +439,8 @@
     try { stage.setPointerCapture(dragId); } catch (err) {}
     dragging = true;
     startX = lastX = e.clientX;
+    startY = lastY = e.clientY;
+    gMode = "?";
     lastT = performance.now();
     p0 = pos;
     vel = 0;
@@ -433,9 +450,24 @@
   });
   stage.addEventListener("pointermove", function (e) {
     if (dragId !== e.pointerId) return;
-    var now = performance.now();
     var dx = e.clientX - startX;
+    var dy = e.clientY - startY;
     if (Math.abs(dx) > moved) moved = Math.abs(dx);
+    if (Math.abs(dy) > moved) moved = Math.abs(dy);
+    if (gMode === "?") {
+      // touch-action:none — the direction is decided here: a mostly
+      // vertical drag scrolls the page by hand, a horizontal one turns the arc
+      if (zoomS <= 1 && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.2) gMode = "scroll";
+      else if (Math.abs(dx) > 10) gMode = "arc";
+      else return;
+    }
+    if (gMode === "scroll") {
+      scrollPage.scrollTop -= (e.clientY - lastY);
+      lastY = e.clientY;
+      lastX = e.clientX;
+      return;
+    }
+    var now = performance.now();
     var inst = (e.clientX - lastX) / Math.max(1, now - lastT); // px per ms
     vel = vel * 0.7 + inst * 0.3;
     lastX = e.clientX;
@@ -446,6 +478,8 @@
     if (dragId !== e.pointerId) return;
     dragId = null;
     dragging = false;
+    if (gMode === "scroll") { gMode = "?"; downCard = null; return; }
+    gMode = "?";
     if (moved < 6) {
       if (downCard) {
         preview = -1;
@@ -556,6 +590,10 @@
     zoomS = Math.min(3, Math.max(1, zoomS * (e.deltaY < 0 ? 1.12 : 0.89)));
     zoomClamp(); zoomApply(false);
   }, { passive: false });
+  /* iOS Safari: two-finger gestures belong to the pinch above — Safari
+     otherwise claims them for its own page zoom / scroll. */
+  stage.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+  stage.addEventListener("touchmove", function (e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
   /* ---------------- layout ---------------- */
   function layout() {
@@ -727,6 +765,7 @@
   function cartBarUpdate() {
     cartBar.hidden = cart.length === 0;
     cbTotalVal.textContent = cartTotalVal() + " MAD";
+    fbOne.classList.toggle("lift", cart.length > 0);
   }
   function cartTexts2() {
     $("#cbTotalTx").textContent = L.ui.total;
@@ -827,7 +866,7 @@
     });
     if (!ok) return;
     var lines = cart.map(function (l) {
-      return "\u2022 " + ITEMS[l.i].name + " \u00b7 Taille " + l.size + " \u00d7" + l.qty + " \u2014 " + (ITEMS[l.i].p * l.qty) + " MAD";
+      return "\u2022 " + window.LANGS.fr.items[l.i].n + " \u00b7 Taille " + l.size + " \u00d7" + l.qty + " \u2014 " + (ITEMS[l.i].p * l.qty) + " MAD";
     });
     var body = "Nouvelle commande \u2014 LBS\n\n" + lines.join("\n") +
       "\n\nTotal : " + cartTotalVal() + " MAD" +
