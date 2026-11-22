@@ -175,7 +175,7 @@
     rollText(nameLn, li.n);
     if (buyBtn) { buyBtn.href = item.u; }
     if (sheetBuy) { sheetBuy.href = item.u; }
-    if (sheetName) { sheetName.textContent = li.n; sheetPrice.textContent = item.p + " MAD · " + li.c; sheetDesc.textContent = li.d || ""; }
+    if (sheetName) { sheetName.textContent = li.n; sheetPrice.innerHTML = '<span class="pOld">249 MAD</span> ' + item.p + " MAD · " + li.c; sheetDesc.textContent = li.d || ""; }
     rollText(priceLn, item.p + " MAD · " + li.c);
     setGarmentBg(thumbG, item);
     if (!reduced) {
@@ -716,6 +716,10 @@
     if (ct) ct.textContent = L.ui.tryOn;
     if (cd) cd.textContent = L.ui.drag;
     cardNames.forEach(function (nm, k) { if (arcItems.length) nm.textContent = L.items[arcItems[k % N]].n; });
+    var gt = $("#gridTitle"); if (gt) gt.textContent = L.ui.gridTitle;
+    var gtr = $("#gridTrust"); if (gtr) gtr.textContent = L.ui.gridTrust;
+    var tf = $("#trustFoot"); if (tf) tf.textContent = L.ui.trustFoot;
+    if (typeof pgrid !== "undefined" && pgrid) buildGrid();
     var cur = shown < 0 ? 0 : shown;
     updateBuy(ITEMS[cur], cur);
     cartTexts2();
@@ -878,9 +882,9 @@
       encodeURIComponent("Commande LBS \u2014 " + name.value.trim()) + "&body=" + encodeURIComponent(body);
   });
 
-  function addToCart(idx) {
+  function addToCart(idx, size) {
     preview = -1; // once added, the item lives in the arc — no longer a preview
-    var sz = selSize(), found = null;
+    var sz = size || selSize(), found = null;
     cart.forEach(function (l) { if (l.i === idx && l.size === sz) found = l; });
     if (found) found.qty++; else cart.push({ i: idx, size: sz, qty: 1 });
     cartSave(); cartBadgeUpdate(true);
@@ -940,6 +944,8 @@
   function buildGrid() {
     pgrid.innerHTML = "";
     ITEMS.forEach(function (item, i) {
+      var wrap = document.createElement("div");
+      wrap.className = "pwrap";
       var card = document.createElement("button");
       card.className = "pcard";
       card.type = "button";
@@ -954,13 +960,33 @@
       nm.textContent = L.items[i].n;
       var pr = document.createElement("div");
       pr.className = "pp";
-      pr.textContent = item.p + " MAD";
+      var po = document.createElement("span");
+      po.className = "ppOld";
+      po.textContent = "249 MAD";
+      var pn2 = document.createElement("span");
+      pn2.textContent = item.p + " MAD";
+      pr.appendChild(po);
+      pr.appendChild(pn2);
       meta.appendChild(nm);
       meta.appendChild(pr);
       card.appendChild(img);
       card.appendChild(meta);
       card.addEventListener("click", function () { openProduct(i); });
-      pgrid.appendChild(card);
+      var qa = document.createElement("button");
+      qa.className = "qadd";
+      qa.type = "button";
+      qa.textContent = "+";
+      qa.setAttribute("aria-label", "Ajout rapide");
+      qa.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        addToCart(i, "M");
+        qa.textContent = "✓";
+        qa.classList.add("done");
+        window.setTimeout(function () { qa.textContent = "+"; qa.classList.remove("done"); }, 1100);
+      });
+      wrap.appendChild(card);
+      wrap.appendChild(qa);
+      pgrid.appendChild(wrap);
     });
   }
   function openProduct(i) {
